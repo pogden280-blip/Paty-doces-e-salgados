@@ -53,7 +53,7 @@
             CLOUDINARY: {
                 CLOUD_NAME: 'douqnbfzz',
                 API_KEY: '339998277624377',
-                PRESET: 'ml_default'
+                PRESET: 'ci3j901d'
             },
             JSONBIN: {
                 BIN_ID: '6995f4f443b1c97be9891846',
@@ -109,13 +109,17 @@
                 formData.append('file', file);
                 formData.append('upload_preset', CONFIG.CLOUDINARY.PRESET);
                 
-                // Determina o tipo de recurso (image ou video)
-                const resourceType = file.type.startsWith('video/') ? 'video' : 'image';
-                
-                const res = await fetch(`https://api.cloudinary.com/v1_1/${CONFIG.CLOUDINARY.CLOUD_NAME}/${resourceType}/upload`, {
+                // Cloudinary recomenda usar 'auto' para detectar automaticamente o tipo de arquivo
+                const res = await fetch(`https://api.cloudinary.com/v1_1/${CONFIG.CLOUDINARY.CLOUD_NAME}/auto/upload`, {
                     method: 'POST',
                     body: formData
                 });
+                
+                if (!res.ok) {
+                    const error = await res.json();
+                    throw new Error(error.error?.message || 'Falha no upload');
+                }
+                
                 const data = await res.json();
                 return data.secure_url;
             },
@@ -229,14 +233,21 @@
                 setIsUploading(true);
                 try {
                     const url = await api.uploadMedia(file);
+                    if (!url) throw new Error("URL não retornada");
+                    
                     if (type === 'video') {
                         setModalVideoUrl(url);
                     } else {
-                        const newPhotos = [...modalPhotoUrls];
-                        newPhotos[index] = url;
-                        setModalPhotoUrls(newPhotos);
+                        setModalPhotoUrls(prev => {
+                            const next = [...prev];
+                            next[index] = url;
+                            return next;
+                        });
                     }
-                } catch (e) { alert("Erro no upload"); }
+                } catch (err) { 
+                    console.error("Erro no upload:", err);
+                    alert(`Erro no upload: ${err.message}`); 
+                }
                 finally { setIsUploading(false); }
             };
 
@@ -319,16 +330,16 @@
                                                         loop 
                                                         playsInline
                                                     ></video>
-                                                ` : (item.media?.photos?.[0]) ? html`
+                                                ` : (item.media?.photos?.[0] || item.imageUrl) ? html`
                                                     <img 
-                                                        src=${item.media.photos[0]} 
+                                                        src=${item.media?.photos?.[0] || item.imageUrl} 
                                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
                                                         alt=${item.title} 
                                                         loading="lazy"
                                                     />
                                                 ` : html`<div className="w-full h-full flex items-center justify-center text-stone-300"><${Lucide.Image} className="w-12 h-12" /></div>`}
                                             </div>
-                                            ${(item.media?.photos?.length > 1 || (item.media?.video && item.media?.photos?.length > 0)) && html`
+                                            ${((item.media?.photos?.length > 1) || (item.media?.video && item.media?.photos?.length > 0)) && html`
                                                 <div className="grid grid-cols-3 gap-1 p-1 bg-white">
                                                     ${item.media.photos.map((photo, idx) => html`
                                                         <div key=${idx} className="aspect-square overflow-hidden rounded-sm">
@@ -494,8 +505,8 @@
                                         </div>
 
                                         <textarea name="desc" defaultValue=${editingItem?.desc} placeholder="Descrição" required className="md:col-span-2 bg-stone-50 p-4 rounded-2xl border h-32"></textarea>
-                                        <button className="md:col-span-2 bg-rose-600 text-white py-5 rounded-3xl font-bold flex items-center justify-center gap-2">
-                                            ${isUploading ? html`<${Lucide.Loader2} className="animate-spin" /> Salvando Mídia...` : 'SALVAR PRODUTO'}
+                                        <button className="md:col-span-2 bg-rose-600 text-white py-5 rounded-3xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled=${isUploading}>
+                                            ${isUploading ? html`<${Lucide.Loader2} className="animate-spin" /> Processando...` : 'SALVAR PRODUTO'}
                                         </button>
                                     </form>
                                 <//>
