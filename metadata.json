@@ -1,0 +1,7 @@
+{
+  "name": "Paty Petiscos & Doces",
+  "description": "O melhor em petiscos gourmet, doces artesanais e experiências gastronômicas únicas.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
