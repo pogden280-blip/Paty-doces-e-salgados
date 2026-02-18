@@ -64,6 +64,7 @@
                 fullName: "Petiscos & Doces",
                 tagline: "Sabor que encanta, momentos que ficam.",
                 mainImageUrl: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?q=80&w=1920&auto=format&fit=crop",
+                whatsapp: "5511999999999" // Substitua pelo seu número real
             }
         };
 
@@ -174,6 +175,8 @@
             const [geminiKey, setGeminiKey] = useState(localStorage.getItem('paty_gemini_key') || '');
             const [modalVideoUrl, setModalVideoUrl] = useState('');
             const [modalPhotoUrls, setModalPhotoUrls] = useState(['', '', '']);
+            const [cart, setCart] = useState([]);
+            const [showCart, setShowCart] = useState(false);
 
             const longPressTimer = useRef(null);
 
@@ -261,6 +264,43 @@
                 const reply = await api.askAI(newMsgs, geminiKey);
                 setMessages([...newMsgs, { role: 'model', text: reply }]);
                 setIsTyping(false);
+            };
+
+            const addToCart = (item) => {
+                setCart(prev => [...prev, item]);
+                alert(`${item.title} adicionado à cesta! 🧺`);
+            };
+
+            const removeFromCart = (index) => {
+                setCart(prev => prev.filter((_, i) => i !== index));
+            };
+
+            const checkoutWhatsApp = (items = null) => {
+                const number = CONFIG.BRAND.whatsapp;
+                let message = "";
+                
+                if (items) {
+                    // Checkout da cesta inteira
+                    message = `Olá Paty! Gostaria de encomendar os seguintes itens da minha cesta:\n\n`;
+                    items.forEach((item, i) => {
+                        message += `${i + 1}. *${item.title}* (${item.price})\n`;
+                    });
+                    const total = items.length;
+                    message += `\nTotal de itens: ${total}`;
+                } else {
+                    // Compra direta de um item
+                    message = `Olá Paty! Gostaria de comprar o item: *${editingItem?.title || 'Produto'}* (${editingItem?.price})`;
+                }
+
+                const url = `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+                window.open(url, '_blank');
+            };
+
+            const directBuy = (item) => {
+                const number = CONFIG.BRAND.whatsapp;
+                const message = `Olá Paty! Gostaria de comprar agora o item: *${item.title}* (${item.price})`;
+                const url = `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+                window.open(url, '_blank');
             };
 
             if (!hasEntered) {
@@ -355,7 +395,22 @@
                                                 <span className="text-xl font-bold text-stone-800">${item.price}</span>
                                             </div>
                                             <h3 className="text-2xl font-serif font-bold text-stone-800 mb-2">${item.title}</h3>
-                                            <p className="text-stone-500 text-sm">${item.desc}</p>
+                                            <p className="text-stone-500 text-sm mb-6">${item.desc}</p>
+                                            
+                                            <div className="flex flex-wrap gap-3 mt-auto">
+                                                <button 
+                                                    onClick=${() => directBuy(item)}
+                                                    className="flex-1 bg-rose-600 text-white px-6 py-3 rounded-2xl font-bold text-sm hover:bg-rose-700 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <${Lucide.ShoppingBag} className="w-4 h-4" /> COMPRAR
+                                                </button>
+                                                <button 
+                                                    onClick=${() => addToCart(item)}
+                                                    className="flex-1 bg-stone-100 text-stone-800 px-6 py-3 rounded-2xl font-bold text-sm hover:bg-stone-200 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <${Lucide.ShoppingCart} className="w-4 h-4" /> + CESTA
+                                                </button>
+                                            </div>
                                         </div>
                                     <//>
                                 `)}
@@ -404,6 +459,80 @@
                         <//>
                         <button onClick=${() => setIsChatOpen(!isChatOpen)} className="bg-rose-500 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-2xl"><${Lucide.MessageSquare} className="w-8 h-8" /></button>
                     </div>
+
+                    {/* Floating Cart Button */}
+                    ${cart.length > 0 && html`
+                        <motion.button 
+                            initial=${{ scale: 0, opacity: 0 }}
+                            animate=${{ scale: 1, opacity: 1 }}
+                            onClick=${() => setShowCart(true)}
+                            className="fixed bottom-28 right-8 z-40 bg-stone-800 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-2xl group"
+                        >
+                            <${Lucide.ShoppingCart} className="w-7 h-7" />
+                            <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white">
+                                ${cart.length}
+                            </span>
+                        </motion.button>
+                    `}
+
+                    {/* Cart Modal */}
+                    <${AnimatePresence}>
+                        ${showCart && html`
+                            <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-stone-900/80 backdrop-blur-sm">
+                                <${motion.div} 
+                                    initial=${{ opacity: 0, scale: 0.95, y: 20 }}
+                                    animate=${{ opacity: 1, scale: 1, y: 0 }}
+                                    exit=${{ opacity: 0, scale: 0.95, y: 20 }}
+                                    className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]"
+                                >
+                                    <div className="p-8 border-b flex justify-between items-center bg-stone-50">
+                                        <div className="flex items-center gap-3">
+                                            <${Lucide.ShoppingCart} className="w-6 h-6 text-rose-500" />
+                                            <h3 className="text-2xl font-serif font-bold">Minha Cesta</h3>
+                                        </div>
+                                        <button onClick=${() => setShowCart(false)} className="text-stone-400 hover:text-stone-800 transition-colors">
+                                            <${Lucide.X} className="w-8 h-8" />
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="flex-1 overflow-y-auto p-8 space-y-4">
+                                        ${cart.length === 0 ? html`
+                                            <div className="text-center py-12">
+                                                <${Lucide.ShoppingBasket} className="w-16 h-16 mx-auto text-stone-200 mb-4" />
+                                                <p className="text-stone-400">Sua cesta está vazia...</p>
+                                            </div>
+                                        ` : cart.map((item, idx) => html`
+                                            <div key=${idx} className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl border border-stone-100 group">
+                                                <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0">
+                                                    <img src=${item.media?.photos?.[0] || item.imageUrl} className="w-full h-full object-cover" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className="font-bold text-stone-800">${item.title}</h4>
+                                                    <p className="text-xs text-stone-500">${item.price}</p>
+                                                </div>
+                                                <button onClick=${() => removeFromCart(idx)} className="p-2 text-stone-300 hover:text-rose-500 transition-colors">
+                                                    <${Lucide.Trash2} className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        `)}
+                                    </div>
+                                    
+                                    <div className="p-8 bg-stone-50 border-t">
+                                        <button 
+                                            disabled=${cart.length === 0}
+                                            onClick=${() => checkoutWhatsApp(cart)}
+                                            className="w-full bg-rose-600 text-white py-5 rounded-3xl font-bold flex items-center justify-center gap-3 shadow-xl hover:bg-rose-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <${Lucide.Send} className="w-5 h-5" /> FINALIZAR NO WHATSAPP
+                                        </button>
+                                        <p className="text-center text-[10px] text-stone-400 mt-4 uppercase tracking-widest font-bold">
+                                            Você será redirecionado para o WhatsApp
+                                        </p>
+                                    </div>
+                                <//>
+                            </div>
+                        `}
+                    <//>
 
                     <${AnimatePresence}>
                         ${showLogin && html`
