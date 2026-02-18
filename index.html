@@ -39,6 +39,11 @@
         
         .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
         .animate-slide-up { animation: slideUp 0.6s ease-out forwards; }
+
+        .admin-glow {
+            box-shadow: 0 0 15px rgba(225, 29, 72, 0.2);
+            border: 1px dashed #e11d48;
+        }
     </style>
     <script type="importmap">
     {
@@ -54,19 +59,10 @@
     <script type="text/babel" data-type="module">
         import { GoogleGenAI } from "@google/genai";
 
-        // --- DADOS DA MARCA ---
-        const BRAND_DATA = {
-            name: "Paty",
-            fullName: "Petiscos & Doces",
-            tagline: "Sabor que encanta, momentos que ficam.",
-            heroQuote: "Feito com amor, servido com alegria.",
-            address: "Atendimento em domicílio & Encomendas",
-            city: "São Paulo - SP",
-            mainImageUrl: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?q=80&w=1920&auto=format&fit=crop",
-        };
-
-        const MENU_HIGHLIGHTS = [
+        // --- DADOS INICIAIS (FALLBACK) ---
+        const INITIAL_MENU = [
             { 
+                id: 1,
                 title: 'Cesta de Petiscos Premium', 
                 price: 'A partir de R$ 89',
                 category: 'petiscos',
@@ -74,6 +70,7 @@
                 imageUrl: 'https://images.unsplash.com/photo-1541529086526-db283c563270?q=80&w=800&auto=format&fit=crop'
             },
             { 
+                id: 2,
                 title: 'Combo Festa Kids', 
                 price: 'Consulte valores',
                 category: 'especial',
@@ -81,27 +78,21 @@
                 imageUrl: 'https://images.unsplash.com/photo-1530101128243-c84f9761e60f?q=80&w=800&auto=format&fit=crop'
             },
             { 
+                id: 3,
                 title: 'Brigadeiros Gourmet', 
                 price: 'R$ 4,50 unid.',
                 category: 'doces',
                 desc: 'Feitos com chocolate belga e confeitos selecionados. Explosão de sabor!',
                 imageUrl: 'https://images.unsplash.com/photo-1541783245831-57d6fb0926d3?q=80&w=800&auto=format&fit=crop'
-            },
-            { 
-                title: 'Tábua de Frios Paty', 
-                price: 'R$ 120',
-                category: 'petiscos',
-                desc: 'Ideal para 4 pessoas. Acompanha torradas temperadas e geleias da casa.',
-                imageUrl: 'https://images.unsplash.com/photo-1631451095765-2c91616fc9e6?q=80&w=800&auto=format&fit=crop'
-            },
-            { 
-                title: 'Bolo de Pote Supreme', 
-                price: 'R$ 18',
-                category: 'doces',
-                desc: 'Camadas generosas de recheio cremoso e massa fofinha.',
-                imageUrl: 'https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?q=80&w=800&auto=format&fit=crop'
             }
         ];
+
+        const BRAND_DATA = {
+            name: "Paty",
+            fullName: "Petiscos & Doces",
+            tagline: "Sabor que encanta, momentos que ficam.",
+            mainImageUrl: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?q=80&w=1920&auto=format&fit=crop",
+        };
 
         // --- SERVIÇO DE IA ---
         const SYSTEM_INSTRUCTION = `Você é o Assistente da Paty Petiscos & Doces. Ajude com o cardápio e sugestões de festas.`;
@@ -119,20 +110,32 @@
         }
 
         // --- COMPONENTES ---
-        const LogoHeader = ({ light = false }) => (
-            <div className="flex flex-col items-center py-10">
-                <span className={`text-4xl md:text-5xl font-serif font-bold tracking-widest ${light ? 'text-white' : 'text-stone-800'}`}>
-                    {BRAND_DATA.name.toUpperCase()}
+        const LogoHeader = ({ light = false, className = "" }) => (
+            <div className={`relative flex items-center justify-center py-16 md:py-24 overflow-hidden w-full ${className}`}>
+                <span className={`absolute text-[10rem] md:text-[18rem] font-serif font-bold select-none pointer-events-none tracking-tighter italic opacity-10 transition-opacity duration-700 ${light ? 'text-white' : 'text-stone-900'}`}>
+                    {BRAND_DATA.name}
                 </span>
-                <span className={`text-xs tracking-[0.4em] uppercase font-light mt-2 ${light ? 'text-white/60' : 'text-stone-500'}`}>
-                    {BRAND_DATA.fullName}
-                </span>
-                <div className="w-10 h-0.5 bg-rose-500 mt-6 rounded-full"></div>
+                <div className="relative z-10 flex flex-col items-center">
+                    <span className={`text-3xl md:text-5xl font-serif font-bold tracking-[0.2em] drop-shadow-sm ${light ? 'text-white' : 'text-stone-800'}`}>
+                        {BRAND_DATA.fullName.toUpperCase()}
+                    </span>
+                    <div className="w-12 h-0.5 bg-rose-500 mt-4 rounded-full"></div>
+                </div>
             </div>
         );
 
-        const MenuCard = ({ item }) => (
-            <div className="flex flex-col md:flex-row bg-white rounded-3xl border border-stone-100 overflow-hidden hover:shadow-xl transition-all duration-500 group">
+        const MenuCard = ({ item, isAdmin, onEdit, onDelete }) => (
+            <div className={`flex flex-col md:flex-row bg-white rounded-3xl border border-stone-100 overflow-hidden hover:shadow-xl transition-all duration-500 group relative ${isAdmin ? 'admin-glow' : ''}`}>
+                {isAdmin && (
+                    <div className="absolute top-4 right-4 z-20 flex gap-2">
+                        <button onClick={() => onEdit(item)} className="bg-stone-800 text-white p-2 rounded-full hover:bg-rose-600 transition-colors">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        </button>
+                        <button onClick={() => onDelete(item.id)} className="bg-rose-600 text-white p-2 rounded-full hover:bg-rose-700 transition-colors">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        </button>
+                    </div>
+                )}
                 <div className="md:w-1/3 h-56 md:h-auto overflow-hidden">
                     <img src={item.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt={item.title} />
                 </div>
@@ -147,12 +150,85 @@
             </div>
         );
 
+        // --- APP PRINCIPAL ---
         const App = () => {
             const [hasEntered, setHasEntered] = React.useState(false);
             const [isChatOpen, setIsChatOpen] = React.useState(false);
             const [messages, setMessages] = React.useState([{ role: 'model', text: 'Olá! Sou o assistente da Paty. Vamos escolher algo delicioso hoje?' }]);
             const [inputValue, setInputValue] = React.useState('');
             const [isTyping, setIsTyping] = React.useState(false);
+            
+            // Estados do Painel ADM
+            const [isAdmin, setIsAdmin] = React.useState(false);
+            const [showLogin, setShowLogin] = React.useState(false);
+            const [password, setPassword] = React.useState('');
+            const [menuItems, setMenuItems] = React.useState([]);
+            const [editingItem, setEditingItem] = React.useState(null);
+            const [showItemModal, setShowItemModal] = React.useState(false);
+
+            // Temporizador para clique longo
+            const longPressTimer = React.useRef(null);
+
+            // Carregar itens do localStorage
+            React.useEffect(() => {
+                const saved = localStorage.getItem('paty_menu');
+                if (saved) {
+                    setMenuItems(JSON.parse(saved));
+                } else {
+                    setMenuItems(INITIAL_MENU);
+                }
+            }, []);
+
+            // Salvar itens sempre que mudar
+            const saveMenu = (items) => {
+                setMenuItems(items);
+                localStorage.setItem('paty_menu', JSON.stringify(items));
+            };
+
+            const handleLongPressStart = () => {
+                longPressTimer.current = setTimeout(() => {
+                    if (!isAdmin) setShowLogin(true);
+                    else setIsAdmin(false); // Sair do modo admin
+                }, 2000);
+            };
+
+            const handleLongPressEnd = () => {
+                clearTimeout(longPressTimer.current);
+            };
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (password === 'Doce0832') {
+                    setIsAdmin(true);
+                    setShowLogin(false);
+                    setPassword('');
+                } else {
+                    alert('Senha incorreta!');
+                }
+            };
+
+            const handleAddItem = () => {
+                setEditingItem({ id: Date.now(), title: '', price: '', category: 'petiscos', desc: '', imageUrl: 'https://images.unsplash.com/photo-1541529086526-db283c563270?q=80&w=800&auto=format&fit=crop' });
+                setShowItemModal(true);
+            };
+
+            const handleSaveItem = (e) => {
+                e.preventDefault();
+                const exists = menuItems.find(i => i.id === editingItem.id);
+                if (exists) {
+                    saveMenu(menuItems.map(i => i.id === editingItem.id ? editingItem : i));
+                } else {
+                    saveMenu([...menuItems, editingItem]);
+                }
+                setShowItemModal(false);
+                setEditingItem(null);
+            };
+
+            const handleDeleteItem = (id) => {
+                if(confirm('Tem certeza que deseja excluir este item?')) {
+                    saveMenu(menuItems.filter(i => i.id !== id));
+                }
+            };
 
             if (!hasEntered) {
                 return (
@@ -161,9 +237,9 @@
                             <img src={BRAND_DATA.mainImageUrl} className="w-full h-full object-cover opacity-30" alt="Bg" />
                             <div className="absolute inset-0 bg-gradient-to-b from-transparent to-stone-900"></div>
                         </div>
-                        <div className="relative z-10 text-center animate-fade-in">
-                            <LogoHeader light={true} />
-                            <p className="text-stone-300 mb-10 italic max-w-xs mx-auto text-sm">{BRAND_DATA.tagline}</p>
+                        <div className="relative z-10 text-center animate-fade-in flex flex-col items-center">
+                            <LogoHeader light={true} className="mb-0" />
+                            <p className="text-stone-300 mb-10 italic max-w-xs mx-auto text-sm -mt-6">{BRAND_DATA.tagline}</p>
                             <button 
                                 onClick={() => setHasEntered(true)}
                                 className="px-12 py-5 bg-rose-600 text-white rounded-full font-bold text-lg hover:bg-rose-500 transition-all hover:scale-105 shadow-2xl"
@@ -182,15 +258,108 @@
                     </header>
 
                     <main className="max-w-4xl mx-auto px-4 py-16 space-y-12 animate-slide-up">
-                        <div className="text-center mb-12">
-                            <h2 className="text-4xl font-serif italic text-stone-800">Nosso Cardápio</h2>
-                            <p className="text-stone-400 text-sm mt-2">Escolha suas delícias favoritas</p>
+                        <div className="text-center mb-12 relative">
+                            {isAdmin && (
+                                <span className="absolute -top-10 left-1/2 -translate-x-1/2 text-[10px] font-bold text-rose-600 uppercase tracking-widest bg-rose-50 px-4 py-1 rounded-full border border-rose-200">
+                                    Modo Administrador Ativo
+                                </span>
+                            )}
+                            <h2 
+                                onMouseDown={handleLongPressStart}
+                                onMouseUp={handleLongPressEnd}
+                                onTouchStart={handleLongPressStart}
+                                onTouchEnd={handleLongPressEnd}
+                                className="text-4xl font-serif italic text-stone-800 cursor-pointer select-none active:scale-95 transition-transform"
+                                title="Clique longo para administração"
+                            >
+                                Nosso Cardápio
+                            </h2>
+                            <p className="text-stone-400 text-sm mt-2 italic">Segure o título para gerenciar</p>
+                            
+                            {isAdmin && (
+                                <button 
+                                    onClick={handleAddItem}
+                                    className="mt-8 px-6 py-2 bg-stone-800 text-white rounded-full text-xs font-bold tracking-widest hover:bg-rose-600 transition-colors flex items-center gap-2 mx-auto"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                    ADICIONAR NOVO ITEM
+                                </button>
+                            )}
                         </div>
 
                         <div className="grid gap-6">
-                            {MENU_HIGHLIGHTS.map((item, i) => <MenuCard key={i} item={item} />)}
+                            {menuItems.map((item) => (
+                                <MenuCard 
+                                    key={item.id} 
+                                    item={item} 
+                                    isAdmin={isAdmin}
+                                    onEdit={(it) => { setEditingItem(it); setShowItemModal(true); }}
+                                    onDelete={handleDeleteItem}
+                                />
+                            ))}
                         </div>
                     </main>
+
+                    {/* Modais de Administração */}
+                    {showLogin && (
+                        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+                            <form onSubmit={handleLogin} className="bg-white p-8 rounded-3xl w-full max-w-sm animate-slide-up">
+                                <h3 className="text-xl font-serif font-bold mb-6 text-center">Acesso Restrito</h3>
+                                <input 
+                                    autoFocus
+                                    type="password" 
+                                    value={password} 
+                                    onChange={e => setPassword(e.target.value)}
+                                    placeholder="Digite a senha..."
+                                    className="w-full bg-stone-100 p-4 rounded-xl outline-none focus:ring-2 focus:ring-rose-500 mb-4"
+                                />
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={() => setShowLogin(false)} className="flex-1 py-3 text-stone-500 font-bold">Cancelar</button>
+                                    <button type="submit" className="flex-1 py-3 bg-rose-600 text-white rounded-xl font-bold">Entrar</button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {showItemModal && editingItem && (
+                        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 overflow-y-auto">
+                            <form onSubmit={handleSaveItem} className="bg-white p-8 rounded-3xl w-full max-w-lg my-8 animate-slide-up">
+                                <h3 className="text-2xl font-serif font-bold mb-6">{editingItem.id ? 'Editar Item' : 'Novo Item'}</h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-[10px] font-bold uppercase text-stone-400">Título</label>
+                                        <input required value={editingItem.title} onChange={e => setEditingItem({...editingItem, title: e.target.value})} className="w-full bg-stone-50 p-3 rounded-xl border border-stone-200 outline-none" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase text-stone-400">Preço</label>
+                                            <input required value={editingItem.price} onChange={e => setEditingItem({...editingItem, price: e.target.value})} className="w-full bg-stone-50 p-3 rounded-xl border border-stone-200 outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase text-stone-400">Categoria</label>
+                                            <select value={editingItem.category} onChange={e => setEditingItem({...editingItem, category: e.target.value})} className="w-full bg-stone-50 p-3 rounded-xl border border-stone-200 outline-none">
+                                                <option value="petiscos">Petiscos</option>
+                                                <option value="doces">Doces</option>
+                                                <option value="especial">Especial</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold uppercase text-stone-400">Descrição</label>
+                                        <textarea required rows="3" value={editingItem.desc} onChange={e => setEditingItem({...editingItem, desc: e.target.value})} className="w-full bg-stone-50 p-3 rounded-xl border border-stone-200 outline-none"></textarea>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold uppercase text-stone-400">Link da Imagem (Unsplash)</label>
+                                        <input required value={editingItem.imageUrl} onChange={e => setEditingItem({...editingItem, imageUrl: e.target.value})} className="w-full bg-stone-50 p-3 rounded-xl border border-stone-200 outline-none" />
+                                    </div>
+                                </div>
+                                <div className="flex gap-4 mt-8">
+                                    <button type="button" onClick={() => setShowItemModal(false)} className="flex-1 py-4 border border-stone-200 rounded-xl font-bold text-stone-500">Cancelar</button>
+                                    <button type="submit" className="flex-1 py-4 bg-rose-600 text-white rounded-xl font-bold">Salvar Alterações</button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
 
                     <footer className="py-12 bg-white border-t border-stone-100 text-center mt-auto">
                         <p className="text-stone-400 text-xs tracking-widest uppercase">Atendimento em Domicílio & Encomendas</p>
