@@ -74,7 +74,10 @@
                 price: 'A partir de R$ 89',
                 category: 'petiscos',
                 desc: 'Uma seleção rigorosa de queijos, embutidos artesanais e antepastos exclusivos.',
-                imageUrl: 'https://images.unsplash.com/photo-1541529086526-db283c563270?q=80&w=800&auto=format&fit=crop'
+                media: {
+                    video: '',
+                    photos: ['https://images.unsplash.com/photo-1541529086526-db283c563270?q=80&w=800&auto=format&fit=crop']
+                }
             }
         ];
 
@@ -101,11 +104,15 @@
                     });
                 } catch (e) { console.error("Erro ao salvar no JSONbin", e); }
             },
-            async uploadImage(file) {
+            async uploadMedia(file) {
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('upload_preset', CONFIG.CLOUDINARY.PRESET);
-                const res = await fetch(`https://api.cloudinary.com/v1_1/${CONFIG.CLOUDINARY.CLOUD_NAME}/image/upload`, {
+                
+                // Determina o tipo de recurso (image ou video)
+                const resourceType = file.type.startsWith('video/') ? 'video' : 'image';
+                
+                const res = await fetch(`https://api.cloudinary.com/v1_1/${CONFIG.CLOUDINARY.CLOUD_NAME}/${resourceType}/upload`, {
                     method: 'POST',
                     body: formData
                 });
@@ -161,7 +168,8 @@
             const [isUploading, setIsUploading] = useState(false);
             const [isLoading, setIsLoading] = useState(true);
             const [geminiKey, setGeminiKey] = useState(localStorage.getItem('paty_gemini_key') || '');
-            const [modalImageUrl, setModalImageUrl] = useState('');
+            const [modalVideoUrl, setModalVideoUrl] = useState('');
+            const [modalPhotoUrls, setModalPhotoUrls] = useState(['', '', '']);
 
             const longPressTimer = useRef(null);
 
@@ -190,7 +198,10 @@
                     price: fd.get('price'),
                     category: fd.get('category'),
                     desc: fd.get('desc'),
-                    imageUrl: fd.get('imageUrl')
+                    media: {
+                        video: modalVideoUrl,
+                        photos: modalPhotoUrls.filter(url => url !== '')
+                    }
                 };
                 const updated = editingItem 
                     ? menuItems.map(i => i.id === editingItem.id ? item : i)
@@ -200,7 +211,8 @@
                 await api.saveMenu(updated);
                 setShowModal(false);
                 setEditingItem(null);
-                setModalImageUrl('');
+                setModalVideoUrl('');
+                setModalPhotoUrls(['', '', '']);
             };
 
             const handleDelete = async (id) => {
@@ -211,13 +223,19 @@
                 }
             };
 
-            const handleUpload = async (e) => {
+            const handleUpload = async (e, type, index = null) => {
                 const file = e.target.files[0];
                 if (!file) return;
                 setIsUploading(true);
                 try {
-                    const url = await api.uploadImage(file);
-                    setModalImageUrl(url);
+                    const url = await api.uploadMedia(file);
+                    if (type === 'video') {
+                        setModalVideoUrl(url);
+                    } else {
+                        const newPhotos = [...modalPhotoUrls];
+                        newPhotos[index] = url;
+                        setModalPhotoUrls(newPhotos);
+                    }
                 } catch (e) { alert("Erro no upload"); }
                 finally { setIsUploading(false); }
             };
@@ -264,7 +282,8 @@
                             ${isAdmin && html`
                                 <button onClick=${() => { 
                                     setEditingItem(null); 
-                                    setModalImageUrl('');
+                                    setModalVideoUrl('');
+                                    setModalPhotoUrls(['', '', '']);
                                     setShowModal(true); 
                                 }} className="bg-stone-800 text-white px-8 py-4 rounded-full flex items-center gap-2 font-bold shadow-xl">
                                     <${Lucide.Plus} className="w-5 h-5" /> NOVO ITEM
@@ -282,14 +301,42 @@
                                             <div className="absolute top-4 right-4 z-20 flex gap-2">
                                                 <button onClick=${() => { 
                                                     setEditingItem(item); 
-                                                    setModalImageUrl(item.imageUrl);
+                                                    setModalVideoUrl(item.media?.video || '');
+                                                    setModalPhotoUrls([...(item.media?.photos || []), '', '', ''].slice(0, 3));
                                                     setShowModal(true); 
                                                 }} className="bg-stone-800 text-white p-2 rounded-full"><${Lucide.Edit2} className="w-4 h-4" /></button>
                                                 <button onClick=${() => handleDelete(item.id)} className="bg-rose-600 text-white p-2 rounded-full"><${Lucide.Trash2} className="w-4 h-4" /></button>
                                             </div>
                                         `}
-                                        <div className="md:w-1/3 h-56 md:h-auto overflow-hidden">
-                                            <img src=${item.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt=${item.title} />
+                                        <div className="md:w-1/3 h-auto overflow-hidden bg-stone-100 flex flex-col">
+                                            <div className="w-full aspect-square relative overflow-hidden">
+                                                ${(item.media?.video) ? html`
+                                                    <video 
+                                                        src=${item.media.video} 
+                                                        className="w-full h-full object-cover" 
+                                                        controls 
+                                                        muted 
+                                                        loop 
+                                                        playsInline
+                                                    ></video>
+                                                ` : (item.media?.photos?.[0]) ? html`
+                                                    <img 
+                                                        src=${item.media.photos[0]} 
+                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                                                        alt=${item.title} 
+                                                        loading="lazy"
+                                                    />
+                                                ` : html`<div className="w-full h-full flex items-center justify-center text-stone-300"><${Lucide.Image} className="w-12 h-12" /></div>`}
+                                            </div>
+                                            ${(item.media?.photos?.length > 1 || (item.media?.video && item.media?.photos?.length > 0)) && html`
+                                                <div className="grid grid-cols-3 gap-1 p-1 bg-white">
+                                                    ${item.media.photos.map((photo, idx) => html`
+                                                        <div key=${idx} className="aspect-square overflow-hidden rounded-sm">
+                                                            <img src=${photo} className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity" onClick=${() => window.open(photo, '_blank')} />
+                                                        </div>
+                                                    `)}
+                                                </div>
+                                            `}
                                         </div>
                                         <div className="p-8 md:w-2/3 flex flex-col justify-center">
                                             <div className="flex justify-between mb-2">
@@ -388,29 +435,68 @@
                                         <button onClick=${() => setShowModal(false)}><${Lucide.X} className="w-8 h-8" /></button>
                                     </div>
                                     <form onSubmit=${handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <input name="title" defaultValue=${editingItem?.title} placeholder="Título" required className="bg-stone-50 p-4 rounded-2xl border" />
-                                        <input name="price" defaultValue=${editingItem?.price} placeholder="Preço" required className="bg-stone-50 p-4 rounded-2xl border" />
+                                        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <input name="title" defaultValue=${editingItem?.title} placeholder="Título" required className="bg-stone-50 p-4 rounded-2xl border" />
+                                            <input name="price" defaultValue=${editingItem?.price} placeholder="Preço" required className="bg-stone-50 p-4 rounded-2xl border" />
+                                        </div>
                                         <select name="category" defaultValue=${editingItem?.category || 'petiscos'} className="bg-stone-50 p-4 rounded-2xl border">
                                             <option value="petiscos">Petiscos</option>
                                             <option value="doces">Doces</option>
                                             <option value="especial">Especial</option>
                                         </select>
-                                        <div className="flex gap-2">
-                                            <input 
-                                                name="imageUrl" 
-                                                value=${modalImageUrl} 
-                                                onChange=${e => setModalImageUrl(e.target.value)}
-                                                placeholder="URL Imagem" 
-                                                required 
-                                                className="flex-1 bg-stone-50 p-4 rounded-2xl border" 
-                                            />
-                                            <label className="bg-stone-800 text-white p-4 rounded-2xl cursor-pointer flex items-center justify-center">
-                                                ${isUploading ? html`<${Lucide.Loader2} className="animate-spin" />` : html`<${Lucide.Camera} />`}
-                                                <input type="file" className="hidden" onChange=${handleUpload} />
-                                            </label>
+                                        
+                                        <div className="md:col-span-2 space-y-4">
+                                            <div className="flex flex-col gap-2">
+                                                <label className="text-xs font-bold text-stone-500 uppercase tracking-widest">Vídeo do Produto (1)</label>
+                                                <div className="flex gap-4 items-center">
+                                                    <label className="flex-1 bg-stone-800 text-white p-4 rounded-2xl cursor-pointer flex items-center justify-center hover:bg-stone-700 transition-colors gap-2">
+                                                        <${Lucide.Video} className="w-5 h-5" />
+                                                        <span>${modalVideoUrl ? 'Trocar Vídeo' : 'Subir Vídeo'}</span>
+                                                        <input type="file" className="hidden" onChange=${e => handleUpload(e, 'video')} accept="video/*" />
+                                                    </label>
+                                                    ${modalVideoUrl && html`
+                                                        <div className="w-16 h-16 rounded-xl overflow-hidden border relative group">
+                                                            <video src=${modalVideoUrl} className="w-full h-full object-cover" />
+                                                            <button type="button" onClick=${() => setModalVideoUrl('')} className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><${Lucide.X} className="w-4 h-4" /></button>
+                                                        </div>
+                                                    `}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col gap-2">
+                                                <label className="text-xs font-bold text-stone-500 uppercase tracking-widest">Fotos do Produto (Até 3)</label>
+                                                <div className="grid grid-cols-3 gap-4">
+                                                    ${[0, 1, 2].map(idx => html`
+                                                        <div key=${idx} className="flex flex-col gap-2">
+                                                            <label className="aspect-square bg-stone-100 border-2 border-dashed border-stone-200 rounded-2xl cursor-pointer flex flex-col items-center justify-center hover:bg-stone-200 transition-colors relative overflow-hidden group">
+                                                                ${modalPhotoUrls[idx] ? html`
+                                                                    <img src=${modalPhotoUrls[idx]} className="w-full h-full object-cover" />
+                                                                    <div className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                                        <${Lucide.RefreshCw} className="w-6 h-6" />
+                                                                    </div>
+                                                                ` : html`
+                                                                    <${Lucide.Image} className="w-6 h-6 text-stone-400" />
+                                                                    <span className="text-[10px] text-stone-400 mt-1">Foto ${idx + 1}</span>
+                                                                `}
+                                                                <input type="file" className="hidden" onChange=${e => handleUpload(e, 'photo', idx)} accept="image/*" />
+                                                            </label>
+                                                            ${modalPhotoUrls[idx] && html`
+                                                                <button type="button" onClick=${() => {
+                                                                    const newPhotos = [...modalPhotoUrls];
+                                                                    newPhotos[idx] = '';
+                                                                    setModalPhotoUrls(newPhotos);
+                                                                }} className="text-[10px] text-rose-500 font-bold uppercase">Remover</button>
+                                                            `}
+                                                        </div>
+                                                    `)}
+                                                </div>
+                                            </div>
                                         </div>
+
                                         <textarea name="desc" defaultValue=${editingItem?.desc} placeholder="Descrição" required className="md:col-span-2 bg-stone-50 p-4 rounded-2xl border h-32"></textarea>
-                                        <button className="md:col-span-2 bg-rose-600 text-white py-5 rounded-3xl font-bold">SALVAR</button>
+                                        <button className="md:col-span-2 bg-rose-600 text-white py-5 rounded-3xl font-bold flex items-center justify-center gap-2">
+                                            ${isUploading ? html`<${Lucide.Loader2} className="animate-spin" /> Salvando Mídia...` : 'SALVAR PRODUTO'}
+                                        </button>
                                     </form>
                                 <//>
                             </div>
